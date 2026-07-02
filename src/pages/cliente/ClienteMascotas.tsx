@@ -5,6 +5,8 @@ import { ESPECIES } from '@/api/types'
 import type { Especie, Sexo } from '@/api/types'
 import { useAuth } from '@/auth/useAuth'
 import { useAsync } from '@/lib/useAsync'
+import { matchesAny } from '@/lib/filters'
+import { FilterBar } from '@/components/FilterBar'
 import { Alert, Badge, Button, Card, EmptyState, Field, Input, PageHeader, Select, Spinner } from '@/components/ui'
 
 export function ClienteMascotas() {
@@ -17,6 +19,11 @@ export function ClienteMascotas() {
   const [especie, setEspecie] = useState<Especie>('PERRO')
   const [formError, setFormError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+
+  // Filters
+  const [query, setQuery] = useState('')
+  const [filtroEspecie, setFiltroEspecie] = useState('')
+  const [filtroSexo, setFiltroSexo] = useState('')
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault()
@@ -43,21 +50,56 @@ export function ClienteMascotas() {
     }
   }
 
+  const all = data ?? []
+  const mascotas = all.filter(
+    (m) =>
+      matchesAny([m.nombre], query) &&
+      (!filtroEspecie || m.especie === filtroEspecie) &&
+      (!filtroSexo || m.sexo === filtroSexo),
+  )
+
   return (
     <div>
       <PageHeader title="Mis mascotas" subtitle="Registra y administra a tus compañeros" />
 
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
         <div>
+          {!loading && !error && all.length > 0 && (
+            <FilterBar
+              search={query}
+              onSearch={setQuery}
+              placeholder="Buscar por nombre…"
+              count={mascotas.length}
+              selects={[
+                {
+                  label: 'Especie',
+                  value: filtroEspecie,
+                  onChange: setFiltroEspecie,
+                  options: ESPECIES.map((e) => ({ value: e, label: e })),
+                },
+                {
+                  label: 'Sexo',
+                  value: filtroSexo,
+                  onChange: setFiltroSexo,
+                  options: [
+                    { value: 'M', label: 'Macho' },
+                    { value: 'H', label: 'Hembra' },
+                  ],
+                },
+              ]}
+            />
+          )}
           {loading ? (
             <Spinner />
           ) : error ? (
             <Alert>{error}</Alert>
-          ) : !data || data.length === 0 ? (
+          ) : all.length === 0 ? (
             <EmptyState title="Aún no tienes mascotas" description="Agrega tu primera mascota con el formulario." />
+          ) : mascotas.length === 0 ? (
+            <EmptyState title="Sin resultados" description="Ninguna mascota coincide con los filtros." />
           ) : (
             <div className="grid gap-4 sm:grid-cols-2">
-              {data.map((m) => (
+              {mascotas.map((m) => (
                 <Card key={m.id}>
                   <div className="flex items-start justify-between">
                     <div>

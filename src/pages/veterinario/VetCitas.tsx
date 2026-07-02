@@ -5,8 +5,10 @@ import { apiErrorMessage } from '@/api/http'
 import type { Cita } from '@/api/types'
 import { useAuth } from '@/auth/useAuth'
 import { useAsync } from '@/lib/useAsync'
-import { citaTimestamp } from '@/lib/format'
+import { citaTimestamp, ESTATUS_LABEL } from '@/lib/format'
+import { EMPTY_CITA_FILTERS, filterCitas, uniqueSorted } from '@/lib/filters'
 import { CitaCard } from '@/components/CitaCard'
+import { FilterBar } from '@/components/FilterBar'
 import { Modal } from '@/components/Modal'
 import { Alert, Button, EmptyState, Field, Input, PageHeader, Spinner, Textarea } from '@/components/ui'
 
@@ -15,6 +17,7 @@ export function VetCitas() {
   const usuario = user!.usuario
   const { data, loading, error, reload } = useAsync(() => getCitasByVeterinario(usuario), [usuario])
 
+  const [filters, setFilters] = useState(EMPTY_CITA_FILTERS)
   const [atender, setAtender] = useState<Cita | null>(null)
   const [diagnostico, setDiagnostico] = useState('')
   const [precio, setPrecio] = useState('')
@@ -45,17 +48,49 @@ export function VetCitas() {
     }
   }
 
-  const citas = (data ?? []).slice().sort((a, b) => citaTimestamp(b) - citaTimestamp(a))
+  const all = data ?? []
+  const citas = filterCitas(all, filters, 'veterinario').sort((a, b) => citaTimestamp(b) - citaTimestamp(a))
+  const tipos = uniqueSorted(all, (c) => c.tipo)
 
   return (
     <div>
       <PageHeader title="Citas" subtitle="Atiende y registra diagnósticos" />
+
+      {!loading && !error && all.length > 0 && (
+        <FilterBar
+          search={filters.query}
+          onSearch={(query) => setFilters((f) => ({ ...f, query }))}
+          placeholder="Buscar por mascota, tipo, cliente o folio…"
+          count={citas.length}
+          selects={[
+            {
+              label: 'Estatus',
+              value: filters.estatus,
+              onChange: (estatus) => setFilters((f) => ({ ...f, estatus })),
+              options: [
+                { value: 'P', label: ESTATUS_LABEL.P },
+                { value: 'A', label: ESTATUS_LABEL.A },
+                { value: 'C', label: ESTATUS_LABEL.C },
+              ],
+            },
+            {
+              label: 'Tipo',
+              value: filters.tipo,
+              onChange: (tipo) => setFilters((f) => ({ ...f, tipo })),
+              options: tipos.map((t) => ({ value: t, label: t })),
+            },
+          ]}
+        />
+      )}
+
       {loading ? (
         <Spinner />
       ) : error ? (
         <Alert>{error}</Alert>
-      ) : citas.length === 0 ? (
+      ) : all.length === 0 ? (
         <EmptyState title="No tienes citas asignadas" />
+      ) : citas.length === 0 ? (
+        <EmptyState title="Sin resultados" description="Ninguna cita coincide con los filtros." />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {citas.map((c) => (

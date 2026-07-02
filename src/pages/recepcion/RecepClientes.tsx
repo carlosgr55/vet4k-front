@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { crearCliente, eliminarCliente, existeCliente, getClientes } from '@/api/clientes'
 import { apiErrorMessage } from '@/api/http'
 import { useAsync } from '@/lib/useAsync'
+import { matchesAny } from '@/lib/filters'
+import { FilterBar } from '@/components/FilterBar'
 import { Modal } from '@/components/Modal'
 import { Alert, Button, Card, EmptyState, Field, Input, PageHeader, Spinner } from '@/components/ui'
 
@@ -13,14 +15,8 @@ export function RecepClientes() {
   const [formError, setFormError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
-  const filtered = (data ?? []).filter((c) => {
-    const q = query.trim().toLowerCase()
-    if (!q) return true
-    return (
-      c.usuario.toLowerCase().includes(q) ||
-      `${c.nombre} ${c.apellido}`.toLowerCase().includes(q)
-    )
-  })
+  const all = data ?? []
+  const filtered = all.filter((c) => matchesAny([c.usuario, c.nombre, c.apellido], query))
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -61,16 +57,23 @@ export function RecepClientes() {
         action={<Button onClick={() => setOpen(true)}>Registrar cliente</Button>}
       />
 
-      <div className="mb-4 max-w-sm">
-        <Input placeholder="Buscar por nombre o usuario…" value={query} onChange={(e) => setQuery(e.target.value)} />
-      </div>
+      {!loading && !error && all.length > 0 && (
+        <FilterBar
+          search={query}
+          onSearch={setQuery}
+          placeholder="Buscar por usuario, nombre o apellido…"
+          count={filtered.length}
+        />
+      )}
 
       {loading ? (
         <Spinner />
       ) : error ? (
         <Alert>{error}</Alert>
-      ) : filtered.length === 0 ? (
+      ) : all.length === 0 ? (
         <EmptyState title="Sin clientes" description="Registra el primer cliente." />
+      ) : filtered.length === 0 ? (
+        <EmptyState title="Sin resultados" description="Ningún cliente coincide con la búsqueda." />
       ) : (
         <Card className="overflow-x-auto p-0">
           <table className="w-full text-left text-sm">

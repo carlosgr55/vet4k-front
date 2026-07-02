@@ -3,6 +3,8 @@ import { crearRecepcionista, getRecepcionistas } from '@/api/recepcion'
 import { apiErrorMessage } from '@/api/http'
 import { useAsync } from '@/lib/useAsync'
 import { formatMoney } from '@/lib/format'
+import { matchesAny } from '@/lib/filters'
+import { FilterBar } from '@/components/FilterBar'
 import { Modal } from '@/components/Modal'
 import { Alert, Button, Card, EmptyState, Field, Input, PageHeader, Spinner } from '@/components/ui'
 
@@ -10,6 +12,7 @@ const EMPTY = { usuario: '', password: '', nombre: '', apellido: '', sueldo: '' 
 
 export function AdminRecepcionistas() {
   const { data, loading, error, reload } = useAsync(() => getRecepcionistas(), [])
+  const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState({ ...EMPTY })
   const [formError, setFormError] = useState<string | null>(null)
@@ -41,6 +44,10 @@ export function AdminRecepcionistas() {
     }
   }
 
+  const recepcionistas = (data ?? []).filter((r) =>
+    matchesAny([r.usuario, r.nombre, r.apellido], query),
+  )
+
   return (
     <div>
       <PageHeader
@@ -49,12 +56,23 @@ export function AdminRecepcionistas() {
         action={<Button onClick={() => setOpen(true)}>Registrar recepcionista</Button>}
       />
 
+      {!loading && !error && (data ?? []).length > 0 && (
+        <FilterBar
+          search={query}
+          onSearch={setQuery}
+          placeholder="Buscar por usuario, nombre o apellido…"
+          count={recepcionistas.length}
+        />
+      )}
+
       {loading ? (
         <Spinner />
       ) : error ? (
         <Alert>{error}</Alert>
       ) : !data || data.length === 0 ? (
         <EmptyState title="Sin recepcionistas" description="Registra el primer recepcionista." />
+      ) : recepcionistas.length === 0 ? (
+        <EmptyState title="Sin resultados" description="Ningún recepcionista coincide con la búsqueda." />
       ) : (
         <Card className="overflow-x-auto p-0">
           <table className="w-full text-left text-sm">
@@ -66,7 +84,7 @@ export function AdminRecepcionistas() {
               </tr>
             </thead>
             <tbody>
-              {data.map((r) => (
+              {recepcionistas.map((r) => (
                 <tr key={r.usuario} className="border-b border-brand-50 last:border-0">
                   <td className="px-4 py-3 font-mono text-brand-700">{r.usuario}</td>
                   <td className="px-4 py-3 text-brand-800">

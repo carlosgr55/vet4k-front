@@ -1,22 +1,16 @@
 import { useState } from 'react'
 import { actualizarEstatusCita, getCitas } from '@/api/citas'
 import { apiErrorMessage } from '@/api/http'
-import type { EstatusCita } from '@/api/types'
 import { useAsync } from '@/lib/useAsync'
-import { citaTimestamp } from '@/lib/format'
+import { citaTimestamp, ESTATUS_LABEL } from '@/lib/format'
+import { EMPTY_CITA_FILTERS, filterCitas, uniqueSorted } from '@/lib/filters'
 import { CitaCard } from '@/components/CitaCard'
+import { FilterBar } from '@/components/FilterBar'
 import { Alert, Button, EmptyState, PageHeader, Spinner } from '@/components/ui'
-
-const FILTROS: { value: EstatusCita | 'ALL'; label: string }[] = [
-  { value: 'ALL', label: 'Todas' },
-  { value: 'P', label: 'Pendientes' },
-  { value: 'A', label: 'Atendidas' },
-  { value: 'C', label: 'Canceladas' },
-]
 
 export function RecepCitas() {
   const { data, loading, error, reload } = useAsync(() => getCitas(), [])
-  const [filtro, setFiltro] = useState<EstatusCita | 'ALL'>('ALL')
+  const [filters, setFilters] = useState(EMPTY_CITA_FILTERS)
 
   async function cancelar(id: string) {
     if (!confirm('¿Cancelar esta cita?')) return
@@ -28,34 +22,49 @@ export function RecepCitas() {
     }
   }
 
-  const citas = (data ?? [])
-    .filter((c) => filtro === 'ALL' || c.estatus === filtro)
-    .sort((a, b) => citaTimestamp(b) - citaTimestamp(a))
+  const all = data ?? []
+  const citas = filterCitas(all, filters, 'veterinario').sort((a, b) => citaTimestamp(b) - citaTimestamp(a))
+  const tipos = uniqueSorted(all, (c) => c.tipo)
 
   return (
     <div>
       <PageHeader title="Citas" subtitle="Todas las citas de la clínica" />
 
-      <div className="mb-4 flex gap-2">
-        {FILTROS.map((f) => (
-          <button
-            key={f.value}
-            onClick={() => setFiltro(f.value)}
-            className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-              filtro === f.value ? 'bg-brand-600 text-white' : 'bg-white text-brand-600 hover:bg-brand-50'
-            }`}
-          >
-            {f.label}
-          </button>
-        ))}
-      </div>
+      {!loading && !error && all.length > 0 && (
+        <FilterBar
+          search={filters.query}
+          onSearch={(query) => setFilters((f) => ({ ...f, query }))}
+          placeholder="Buscar por mascota, tipo, cliente, veterinario o folio…"
+          count={citas.length}
+          selects={[
+            {
+              label: 'Estatus',
+              value: filters.estatus,
+              onChange: (estatus) => setFilters((f) => ({ ...f, estatus })),
+              options: [
+                { value: 'P', label: ESTATUS_LABEL.P },
+                { value: 'A', label: ESTATUS_LABEL.A },
+                { value: 'C', label: ESTATUS_LABEL.C },
+              ],
+            },
+            {
+              label: 'Tipo',
+              value: filters.tipo,
+              onChange: (tipo) => setFilters((f) => ({ ...f, tipo })),
+              options: tipos.map((t) => ({ value: t, label: t })),
+            },
+          ]}
+        />
+      )}
 
       {loading ? (
         <Spinner />
       ) : error ? (
         <Alert>{error}</Alert>
+      ) : all.length === 0 ? (
+        <EmptyState title="Sin citas" description="No hay citas registradas." />
       ) : citas.length === 0 ? (
-        <EmptyState title="Sin citas" description="No hay citas con este filtro." />
+        <EmptyState title="Sin resultados" description="Ninguna cita coincide con los filtros." />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {citas.map((c) => (
